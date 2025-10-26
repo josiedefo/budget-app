@@ -44,17 +44,50 @@ A Vue.js application for tracking planned vs actual monthly budgets with compreh
 
 ## Getting Started
 
-1. Install dependencies:
+### Option 1: Quick Start with Docker (Recommended)
+
+1. **Prerequisites**: Make sure Docker is installed and running
+
+2. **Start the full stack**:
+```bash
+# Start PostgreSQL database
+docker-compose -f docker-compose.dev.yml up -d postgres
+
+# Install backend dependencies
+cd backend && npm install && cd ..
+
+# Install frontend dependencies  
+npm install
+
+# Start backend API (in one terminal)
+cd backend && npm run dev
+
+# Start frontend (in another terminal)
+npm run dev
+```
+
+3. **Access the application**:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:3001
+   - Database: PostgreSQL on localhost:5432
+
+### Option 2: Frontend Only (Local Data)
+
+If you want to run just the frontend with local data:
+
+1. **Install dependencies**:
 ```bash
 npm install
 ```
 
-2. Start the development server:
+2. **Start development server**:
 ```bash
 npm run dev
 ```
 
-3. Open your browser and navigate to the displayed URL (typically `http://localhost:5173`)
+3. **Open browser**: Navigate to http://localhost:5173
+
+> **Note**: This mode uses hardcoded sample data and changes won't persist.
 
 ## Usage
 
@@ -80,6 +113,42 @@ npm run build
 
 ## Technology Stack
 
-- Vue 3 (Composition API)
-- Vite
-- CSS3 (with sticky headers and responsive design)
+### Frontend
+- **Vue 3** with Composition API
+- **Vite** for development and build tooling
+- **CSS3** with scoped styles, sticky headers, and responsive design
+
+### Backend (New!)
+- **Node.js** with Express.js REST API
+- **PostgreSQL** database with Docker
+- **Database Features**:
+  - Persistent data storage
+  - Automatic timestamps
+  - Data integrity constraints
+  - Sample data initialization
+
+### Architecture
+- **Frontend**: Vue.js SPA consuming REST API
+- **Backend**: Express.js API server
+- **Database**: PostgreSQL with proper schema design
+- **Development**: Docker for consistent database environment
+
+## API Endpoints
+
+The backend provides these REST endpoints:
+
+- `GET /api/health` - Health check
+- `GET /api/budget` - Get all budget data
+- `PUT /api/budget/:category/:itemName/:month` - Update budget amount
+- `POST /api/budget/items` - Create new budget item
+- `DELETE /api/budget/items/:category/:itemName` - Delete budget item
+- `GET /api/budget/summary` - Get budget summary statistics
+
+## Database Schema
+
+The PostgreSQL database includes:
+
+- **users** - User accounts (ready for multi-user support)
+- **budget_items** - Budget categories and item names
+- **budget_amounts** - Monthly planned and actual amounts
+- **Enums** - Budget categories and month names for data integrity

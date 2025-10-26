@@ -2,115 +2,123 @@
   <div class="budget-app">
     <header class="app-header">
       <h1>2025 Budget Tracker</h1>
+      <div class="status-indicators">
+        <div class="connection-status" :class="connectionStatus">
+          {{ connectionMessage }}
+        </div>
+        <div v-if="loading" class="loading">Loading...</div>
+        <div v-if="error" class="error">{{ error }}</div>
+      </div>
     </header>
     
     <main class="app-main">
       <BudgetTable
+        v-if="!loading && budgetData"
         :budget-data="budgetData"
         :months="months"
         @update-budget="updateBudgetItem"
       />
+      <div v-else-if="loading" class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading your budget data...</p>
+      </div>
+      <div v-else-if="error" class="error-container">
+        <h2>Unable to load budget data</h2>
+        <p>{{ error }}</p>
+        <button @click="loadBudgetData" class="retry-button">Retry</button>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import BudgetTable from './components/BudgetTable.vue'
+import { budgetApi, ApiError } from './services/api.js'
 
 const months = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ]
 
-const budgetData = reactive({
-  income: {
-    'Salary': { 
-      Jan: { planned: 5000, actual: 4800 }, Feb: { planned: 5000, actual: 5000 }, Mar: { planned: 5000, actual: 5100 }, 
-      Apr: { planned: 5000, actual: 5000 }, May: { planned: 5000, actual: 4900 }, Jun: { planned: 5000, actual: 5000 }, 
-      Jul: { planned: 5000, actual: 5200 }, Aug: { planned: 5000, actual: 5000 }, Sep: { planned: 5000, actual: 4950 }, 
-      Oct: { planned: 5000, actual: 5000 }, Nov: { planned: 5000, actual: 5000 }, Dec: { planned: 5000, actual: 5000 }
-    },
-    'Freelance': { 
-      Jan: { planned: 500, actual: 600 }, Feb: { planned: 500, actual: 400 }, Mar: { planned: 500, actual: 550 }, 
-      Apr: { planned: 500, actual: 500 }, May: { planned: 500, actual: 300 }, Jun: { planned: 500, actual: 700 }, 
-      Jul: { planned: 500, actual: 500 }, Aug: { planned: 500, actual: 450 }, Sep: { planned: 500, actual: 500 }, 
-      Oct: { planned: 500, actual: 500 }, Nov: { planned: 500, actual: 500 }, Dec: { planned: 500, actual: 500 }
-    },
-    'Other Income': { 
-      Jan: { planned: 0, actual: 100 }, Feb: { planned: 0, actual: 0 }, Mar: { planned: 0, actual: 50 }, 
-      Apr: { planned: 0, actual: 0 }, May: { planned: 0, actual: 0 }, Jun: { planned: 0, actual: 0 }, 
-      Jul: { planned: 0, actual: 0 }, Aug: { planned: 0, actual: 0 }, Sep: { planned: 0, actual: 0 }, 
-      Oct: { planned: 0, actual: 0 }, Nov: { planned: 0, actual: 0 }, Dec: { planned: 0, actual: 0 }
-    }
-  },
-  expenses: {
-    'Rent/Mortgage': { 
-      Jan: { planned: 1200, actual: 1200 }, Feb: { planned: 1200, actual: 1200 }, Mar: { planned: 1200, actual: 1200 }, 
-      Apr: { planned: 1200, actual: 1200 }, May: { planned: 1200, actual: 1200 }, Jun: { planned: 1200, actual: 1200 }, 
-      Jul: { planned: 1200, actual: 1200 }, Aug: { planned: 1200, actual: 1200 }, Sep: { planned: 1200, actual: 1200 }, 
-      Oct: { planned: 1200, actual: 1200 }, Nov: { planned: 1200, actual: 1200 }, Dec: { planned: 1200, actual: 1200 }
-    },
-    'Utilities': { 
-      Jan: { planned: 150, actual: 180 }, Feb: { planned: 150, actual: 140 }, Mar: { planned: 150, actual: 160 }, 
-      Apr: { planned: 150, actual: 145 }, May: { planned: 150, actual: 130 }, Jun: { planned: 150, actual: 170 }, 
-      Jul: { planned: 150, actual: 190 }, Aug: { planned: 150, actual: 185 }, Sep: { planned: 150, actual: 155 }, 
-      Oct: { planned: 150, actual: 150 }, Nov: { planned: 150, actual: 150 }, Dec: { planned: 150, actual: 150 }
-    },
-    'Groceries': { 
-      Jan: { planned: 400, actual: 450 }, Feb: { planned: 400, actual: 380 }, Mar: { planned: 400, actual: 420 }, 
-      Apr: { planned: 400, actual: 390 }, May: { planned: 400, actual: 410 }, Jun: { planned: 400, actual: 430 }, 
-      Jul: { planned: 400, actual: 440 }, Aug: { planned: 400, actual: 400 }, Sep: { planned: 400, actual: 395 }, 
-      Oct: { planned: 400, actual: 400 }, Nov: { planned: 400, actual: 400 }, Dec: { planned: 400, actual: 400 }
-    },
-    'Transportation': { 
-      Jan: { planned: 200, actual: 220 }, Feb: { planned: 200, actual: 180 }, Mar: { planned: 200, actual: 210 }, 
-      Apr: { planned: 200, actual: 195 }, May: { planned: 200, actual: 190 }, Jun: { planned: 200, actual: 250 }, 
-      Jul: { planned: 200, actual: 230 }, Aug: { planned: 200, actual: 200 }, Sep: { planned: 200, actual: 185 }, 
-      Oct: { planned: 200, actual: 200 }, Nov: { planned: 200, actual: 200 }, Dec: { planned: 200, actual: 200 }
-    },
-    'Entertainment': { 
-      Jan: { planned: 300, actual: 280 }, Feb: { planned: 300, actual: 350 }, Mar: { planned: 300, actual: 320 }, 
-      Apr: { planned: 300, actual: 290 }, May: { planned: 300, actual: 310 }, Jun: { planned: 300, actual: 400 }, 
-      Jul: { planned: 300, actual: 380 }, Aug: { planned: 300, actual: 300 }, Sep: { planned: 300, actual: 275 }, 
-      Oct: { planned: 300, actual: 300 }, Nov: { planned: 300, actual: 300 }, Dec: { planned: 300, actual: 300 }
-    },
-    'Healthcare': { 
-      Jan: { planned: 100, actual: 150 }, Feb: { planned: 100, actual: 80 }, Mar: { planned: 100, actual: 120 }, 
-      Apr: { planned: 100, actual: 90 }, May: { planned: 100, actual: 110 }, Jun: { planned: 100, actual: 95 }, 
-      Jul: { planned: 100, actual: 105 }, Aug: { planned: 100, actual: 100 }, Sep: { planned: 100, actual: 85 }, 
-      Oct: { planned: 100, actual: 100 }, Nov: { planned: 100, actual: 100 }, Dec: { planned: 100, actual: 100 }
-    },
-    'Insurance': { 
-      Jan: { planned: 250, actual: 250 }, Feb: { planned: 250, actual: 250 }, Mar: { planned: 250, actual: 250 }, 
-      Apr: { planned: 250, actual: 250 }, May: { planned: 250, actual: 250 }, Jun: { planned: 250, actual: 250 }, 
-      Jul: { planned: 250, actual: 250 }, Aug: { planned: 250, actual: 250 }, Sep: { planned: 250, actual: 250 }, 
-      Oct: { planned: 250, actual: 250 }, Nov: { planned: 250, actual: 250 }, Dec: { planned: 250, actual: 250 }
-    },
-    'Savings': { 
-      Jan: { planned: 500, actual: 400 }, Feb: { planned: 500, actual: 500 }, Mar: { planned: 500, actual: 450 }, 
-      Apr: { planned: 500, actual: 500 }, May: { planned: 500, actual: 480 }, Jun: { planned: 500, actual: 350 }, 
-      Jul: { planned: 500, actual: 420 }, Aug: { planned: 500, actual: 500 }, Sep: { planned: 500, actual: 520 }, 
-      Oct: { planned: 500, actual: 500 }, Nov: { planned: 500, actual: 500 }, Dec: { planned: 500, actual: 500 }
-    },
-    'Debt Payment': { 
-      Jan: { planned: 300, actual: 300 }, Feb: { planned: 300, actual: 300 }, Mar: { planned: 300, actual: 300 }, 
-      Apr: { planned: 300, actual: 300 }, May: { planned: 300, actual: 300 }, Jun: { planned: 300, actual: 300 }, 
-      Jul: { planned: 300, actual: 300 }, Aug: { planned: 300, actual: 300 }, Sep: { planned: 300, actual: 300 }, 
-      Oct: { planned: 300, actual: 300 }, Nov: { planned: 300, actual: 300 }, Dec: { planned: 300, actual: 300 }
-    },
-    'Miscellaneous': { 
-      Jan: { planned: 200, actual: 240 }, Feb: { planned: 200, actual: 180 }, Mar: { planned: 200, actual: 220 }, 
-      Apr: { planned: 200, actual: 195 }, May: { planned: 200, actual: 210 }, Jun: { planned: 200, actual: 250 }, 
-      Jul: { planned: 200, actual: 230 }, Aug: { planned: 200, actual: 200 }, Sep: { planned: 200, actual: 190 }, 
-      Oct: { planned: 200, actual: 200 }, Nov: { planned: 200, actual: 200 }, Dec: { planned: 200, actual: 200 }
-    }
+const budgetData = ref(null)
+const loading = ref(true)
+const error = ref(null)
+const connectionStatus = ref('disconnected')
+
+const connectionMessage = computed(() => {
+  switch (connectionStatus.value) {
+    case 'connected': return '🟢 Connected'
+    case 'connecting': return '🟡 Connecting...'
+    case 'error': return '🔴 Connection Error'
+    default: return '🔴 Disconnected'
   }
 })
 
-const updateBudgetItem = (category, item, month, type, value) => {
-  budgetData[category][item][month][type] = parseFloat(value) || 0
+// Load budget data from API
+const loadBudgetData = async () => {
+  try {
+    loading.value = true
+    error.value = null
+    connectionStatus.value = 'connecting'
+    
+    // Check API health first
+    await budgetApi.healthCheck()
+    connectionStatus.value = 'connected'
+    
+    // Load budget data
+    const data = await budgetApi.getBudgetData()
+    budgetData.value = reactive(data)
+    
+  } catch (err) {
+    console.error('Failed to load budget data:', err)
+    connectionStatus.value = 'error'
+    
+    if (err instanceof ApiError) {
+      if (err.status === 0) {
+        error.value = 'Cannot connect to server. Please ensure the API is running.'
+      } else {
+        error.value = `Server error: ${err.message}`
+      }
+    } else {
+      error.value = 'An unexpected error occurred while loading budget data.'
+    }
+  } finally {
+    loading.value = false
+  }
 }
+
+// Update budget item via API
+const updateBudgetItem = async (category, item, month, type, value) => {
+  try {
+    const result = await budgetApi.updateAmount(category, item, month, type, value)
+    
+    // Update local state with server response
+    if (budgetData.value && budgetData.value[category] && budgetData.value[category][item]) {
+      budgetData.value[category][item][month] = {
+        planned: result.planned,
+        actual: result.actual
+      }
+    }
+  } catch (err) {
+    console.error('Failed to update budget item:', err)
+    
+    // Show error message and optionally revert the change
+    if (err instanceof ApiError) {
+      alert(`Failed to update: ${err.message}`)
+    } else {
+      alert('Failed to save changes. Please try again.')
+    }
+    
+    // Reload data to ensure consistency
+    await loadBudgetData()
+  }
+}
+
+// Load data when component mounts
+onMounted(() => {
+  loadBudgetData()
+})
 </script>
 
 <style scoped>
@@ -121,15 +129,150 @@ const updateBudgetItem = (category, item, month, type, value) => {
 
 .app-header {
   margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .app-header h1 {
   color: #2c3e50;
   font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+  margin: 0;
+}
+
+.status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.connection-status {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  background-color: #f0fff4;
+  color: #2f855a;
+  border: 1px solid #c6f6d5;
+}
+
+.connection-status.connecting {
+  background-color: #fffbeb;
+  color: #d69e2e;
+  border: 1px solid #fed7aa;
+}
+
+.connection-status.error,
+.connection-status.disconnected {
+  background-color: #fff5f5;
+  color: #c53030;
+  border: 1px solid #fed7d7;
+}
+
+.loading, .error {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.loading {
+  background-color: #ebf8ff;
+  color: #2b6cb0;
+  border: 1px solid #bee3f8;
+}
+
+.error {
+  background-color: #fff5f5;
+  color: #c53030;
+  border: 1px solid #fed7d7;
 }
 
 .app-main {
   width: 100%;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #3182ce;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.error-container h2 {
+  color: #c53030;
+  margin-bottom: 1rem;
+}
+
+.error-container p {
+  color: #4a5568;
+  margin-bottom: 2rem;
+  max-width: 400px;
+}
+
+.retry-button {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.retry-button:hover {
+  background-color: #2c5aa0;
+}
+
+.retry-button:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .app-header h1 {
+    font-size: 2rem;
+  }
+  
+  .status-indicators {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 </style>
